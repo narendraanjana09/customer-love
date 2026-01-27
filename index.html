@@ -2,14 +2,19 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Customer Love Quote Cards</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }
+
+        :root {
+            --card-col-min: 380px;
+            /* JS will override based on selected format width */
         }
 
         body {
@@ -145,9 +150,10 @@
             font-weight: 500;
         }
 
+        /* IMPORTANT: auto-fit grid, column count adapts (3 -> 2 -> 1) based on card width */
         .grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(var(--card-col-min), 1fr));
             gap: 24px;
             max-width: 1400px;
         }
@@ -246,7 +252,7 @@
 
             <div class="form-group">
                 <label>Author (Optional)</label>
-                <input type="text" id="authorText" placeholder="Customer name" value="Sarah Johnson">
+                <input type="text" id="authorText" placeholder="Customer name" value="Sarah Johnson" />
             </div>
 
             <div class="form-group">
@@ -271,7 +277,7 @@
         </div>
 
         <div class="panel right-panel">
-            <div class="info" id="infoText">Click Generate to create 9 unique cards</div>
+            <div class="info" id="infoText">Click Generate to create cards</div>
             <div class="grid" id="cardsGrid"></div>
         </div>
     </div>
@@ -279,10 +285,11 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        // ✅ Your requested shape: minWidth + minHeight (both minimum)
         const FORMATS = {
-            square: { width: 1080, height: 1080 },
-            portrait: { width: 1080, height: 1350 },
-            landscape: { width: 1600, height: 900 },
+            square: { minWidth: 1080, minHeight: 1080 },
+            portrait: { minWidth: 1080, minHeight: 1350 },
+            landscape: { minWidth: 1600, minHeight: 900 },
         };
 
         const PALETTES = [
@@ -333,7 +340,6 @@
             'corner-frame', 'diagonal'
         ];
 
-
         function seededRandom(seed) {
             let x = Math.sin(seed++) * 10000;
             return x - Math.floor(x);
@@ -346,187 +352,13 @@
             const drawingStyle = DRAWING_STYLES[Math.floor(seededRandom(seed++) * DRAWING_STYLES.length)];
             const layout = LAYOUTS[Math.floor(seededRandom(seed++) * LAYOUTS.length)];
 
-
             const bgTypes = [
                 'solid', 'gradient', 'texture', 'dark', 'pastel', 'paper', 'glass', 'bold',
                 'noise', 'stripes', 'spotlight', 'blobs', 'halftone'
             ];
 
             const bgType = bgTypes[Math.floor(seededRandom(seed++) * bgTypes.length)];
-
             return { palette, gradient, font, drawingStyle, layout, bgType, seed };
-        }
-
-        function wrapText(ctx, text, maxWidth, lineHeight) {
-            const words = text.split(' ');
-            const lines = [];
-            let currentLine = '';
-
-            for (let word of words) {
-                const testLine = currentLine + (currentLine ? ' ' : '') + word;
-                const metrics = ctx.measureText(testLine);
-
-                if (metrics.width > maxWidth && currentLine) {
-                    lines.push(currentLine);
-                    currentLine = word;
-                } else {
-                    currentLine = testLine;
-                }
-            }
-
-            if (currentLine) {
-                lines.push(currentLine);
-            }
-
-            return lines;
-        }
-
-        function clampLines(lines, maxLines) {
-            if (lines.length <= maxLines) return lines;
-
-            const clamped = lines.slice(0, maxLines);
-            const lastLine = clamped[maxLines - 1];
-            clamped[maxLines - 1] = lastLine.substring(0, lastLine.length - 3) + '...';
-
-            return clamped;
-        }
-
-        function drawHandDrawnHeart(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.3 - 0.15);
-
-            ctx.beginPath();
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-
-            // Hand-drawn wobbly heart
-            const wobble = (t) => size * 0.05 * Math.sin(t * 8 + seededRandom(seed + 1) * 10);
-
-            for (let t = 0; t <= Math.PI * 2; t += 0.1) {
-                const r = size * (1 + wobble(t));
-                let px, py;
-
-                if (t < Math.PI) {
-                    px = r * Math.sin(t) * 0.5;
-                    py = -r * Math.cos(t) * 0.5;
-                } else {
-                    const angle = t - Math.PI;
-                    px = -r * Math.sin(angle) * 0.5;
-                    py = -r * Math.cos(angle) * 0.5;
-                }
-
-                py += size * 0.3;
-
-                if (t === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-
-            ctx.closePath();
-            ctx.globalAlpha = 0.4;
-            ctx.fill();
-            ctx.globalAlpha = 0.6;
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnStar(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * Math.PI * 2);
-
-            ctx.beginPath();
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-
-            const points = 5;
-            const outerRadius = size;
-            const innerRadius = size * 0.4;
-
-            for (let i = 0; i < points * 2; i++) {
-                const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                const wobble = 1 + seededRandom(seed + i) * 0.1 - 0.05;
-                const r = radius * wobble;
-                const angle = (Math.PI * i) / points - Math.PI / 2;
-                const px = Math.cos(angle) * r;
-                const py = Math.sin(angle) * r;
-
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-
-            ctx.closePath();
-            ctx.globalAlpha = 0.4;
-            ctx.fill();
-            ctx.globalAlpha = 0.6;
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnSparkle(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * Math.PI / 4);
-
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.lineCap = 'round';
-            ctx.globalAlpha = 0.5;
-
-            // Main cross
-            ctx.beginPath();
-            ctx.moveTo(-size, 0);
-            ctx.lineTo(size, 0);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(0, -size);
-            ctx.lineTo(0, size);
-            ctx.stroke();
-
-            // Diagonal lines
-            const diag = size * 0.7;
-            ctx.beginPath();
-            ctx.moveTo(-diag, -diag);
-            ctx.lineTo(diag, diag);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(diag, -diag);
-            ctx.lineTo(-diag, diag);
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnCircle(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-
-            ctx.beginPath();
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-
-            // Wobbly circle
-            for (let angle = 0; angle <= Math.PI * 2; angle += 0.1) {
-                const wobble = 1 + Math.sin(angle * 6 + seededRandom(seed) * 10) * 0.08;
-                const r = size * wobble;
-                const px = Math.cos(angle) * r;
-                const py = Math.sin(angle) * r;
-
-                if (angle === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-
-            ctx.closePath();
-            ctx.globalAlpha = 0.4;
-            ctx.fill();
-            ctx.globalAlpha = 0.6;
-            ctx.stroke();
-
-            ctx.restore();
         }
 
         function roundedRectPath(ctx, x, y, w, h, r) {
@@ -552,338 +384,150 @@
             ctx.putImageData(img, 0, 0);
         }
 
-        function drawHandDrawnDiamond(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.6 - 0.3);
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.5;
+        // Keeping decorations OFF (like your current file)
+        function drawRandomDrawings(ctx, style, width, height, color, seed) { }
 
-            const wob = (k) => (seededRandom(seed + k) - 0.5) * size * 0.12;
+        // Wrap, but ALSO handle super long words
+        function wrapTextSmart(ctx, text, maxWidth) {
+            const tokens = text.split(/\s+/);
+            const lines = [];
+            let current = '';
 
-            ctx.beginPath();
-            ctx.moveTo(0 + wob(1), -size + wob(2));
-            ctx.lineTo(size + wob(3), 0 + wob(4));
-            ctx.lineTo(0 + wob(5), size + wob(6));
-            ctx.lineTo(-size + wob(7), 0 + wob(8));
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 0.7;
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnPlus(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * Math.PI / 4);
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.55;
-
-            const wob = (k) => (seededRandom(seed + k) - 0.5) * size * 0.12;
-
-            ctx.beginPath();
-            ctx.moveTo(-size + wob(1), 0 + wob(2));
-            ctx.lineTo(size + wob(3), 0 + wob(4));
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(0 + wob(5), -size + wob(6));
-            ctx.lineTo(0 + wob(7), size + wob(8));
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnSquiggle(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.5 - 0.25);
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.5;
-
-            const amp = size * (0.25 + seededRandom(seed + 1) * 0.25);
-            const len = size * (1.6 + seededRandom(seed + 2) * 1.2);
-
-            ctx.beginPath();
-            for (let t = 0; t <= 1; t += 0.05) {
-                const px = (t - 0.5) * len;
-                const py = Math.sin(t * Math.PI * 2 * (2 + Math.floor(seededRandom(seed + 3) * 2))) * amp;
-                if (t === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnDotCluster(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.globalAlpha = 0.45;
-
-            const count = 6 + Math.floor(seededRandom(seed) * 10);
-            for (let i = 0; i < count; i++) {
-                const dx = (seededRandom(seed + i * 3) - 0.5) * size * 2;
-                const dy = (seededRandom(seed + i * 3 + 1) - 0.5) * size * 2;
-                const r = (0.12 + seededRandom(seed + i * 3 + 2) * 0.22) * size;
-                ctx.beginPath();
-                ctx.arc(dx, dy, r, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnLeaf(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * Math.PI * 2);
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.5;
-
-            ctx.beginPath();
-            ctx.moveTo(0, -size);
-            ctx.quadraticCurveTo(size, -size * 0.2, 0, size);
-            ctx.quadraticCurveTo(-size, -size * 0.2, 0, -size);
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 0.7;
-            ctx.stroke();
-
-            // vein
-            ctx.globalAlpha = 0.35;
-            ctx.beginPath();
-            ctx.moveTo(0, -size * 0.8);
-            ctx.lineTo(0, size * 0.8);
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnBolt(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.8 - 0.4);
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.5;
-
-            const s = size;
-            const wob = (k) => (seededRandom(seed + k) - 0.5) * s * 0.12;
-
-            ctx.beginPath();
-            ctx.moveTo(-s * 0.2 + wob(1), -s + wob(2));
-            ctx.lineTo(s * 0.2 + wob(3), -s * 0.1 + wob(4));
-            ctx.lineTo(-s * 0.05 + wob(5), -s * 0.1 + wob(6));
-            ctx.lineTo(s * 0.25 + wob(7), s + wob(8));
-            ctx.lineTo(-s * 0.25 + wob(9), s * 0.15 + wob(10));
-            ctx.lineTo(s * 0.05 + wob(11), s * 0.15 + wob(12));
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 0.7;
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnMoon(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.5 - 0.25);
-            ctx.globalAlpha = 0.5;
-
-            ctx.beginPath();
-            ctx.arc(0, 0, size, 0, Math.PI * 2);
-            ctx.arc(size * 0.35, -size * 0.1, size * 0.85, 0, Math.PI * 2, true);
-            ctx.fill('evenodd');
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnCloud(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.3 - 0.15);
-            ctx.globalAlpha = 0.45;
-
-            const r1 = size * 0.55, r2 = size * 0.7, r3 = size * 0.5;
-            ctx.beginPath();
-            ctx.arc(-size * 0.4, 0, r1, 0, Math.PI * 2);
-            ctx.arc(0, -size * 0.25, r2, 0, Math.PI * 2);
-            ctx.arc(size * 0.5, 0, r3, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnRibbon(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.6 - 0.3);
-            ctx.globalAlpha = 0.5;
-
-            ctx.beginPath();
-            ctx.moveTo(-size, -size * 0.2);
-            ctx.quadraticCurveTo(0, -size * 0.8, size, -size * 0.2);
-            ctx.quadraticCurveTo(0, size * 0.2, -size, -size * 0.2);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnTriangle(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * Math.PI * 2);
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.45;
-
-            const wob = (k) => (seededRandom(seed + k) - 0.5) * size * 0.12;
-
-            ctx.beginPath();
-            ctx.moveTo(0 + wob(1), -size + wob(2));
-            ctx.lineTo(size + wob(3), size + wob(4));
-            ctx.lineTo(-size + wob(5), size + wob(6));
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 0.7;
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function drawHandDrawnHexagon(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * 0.6 - 0.3);
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.45;
-
-            const wob = (k) => (seededRandom(seed + k) - 0.5) * size * 0.10;
-
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const ang = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-                const px = Math.cos(ang) * size + wob(i + 1);
-                const py = Math.sin(ang) * size + wob(i + 11);
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 0.7;
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-
-        function drawHandDrawnConfetti(ctx, x, y, size, seed) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(seededRandom(seed) * Math.PI * 2);
-
-            ctx.fillStyle = ctx.fillStyle;
-            ctx.globalAlpha = 0.5;
-
-            // Random small shapes
-            const shapeType = Math.floor(seededRandom(seed + 1) * 3);
-
-            if (shapeType === 0) {
-                // Rectangle
-                ctx.fillRect(-size * 0.5, -size * 0.2, size, size * 0.4);
-            } else if (shapeType === 1) {
-                // Triangle
-                ctx.beginPath();
-                ctx.moveTo(0, -size * 0.5);
-                ctx.lineTo(size * 0.5, size * 0.5);
-                ctx.lineTo(-size * 0.5, size * 0.5);
-                ctx.closePath();
-                ctx.fill();
-            } else {
-                // Circle
-                ctx.beginPath();
-                ctx.arc(0, 0, size * 0.4, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            ctx.restore();
-        }
-
-        function drawRandomDrawings(ctx, style, width, height, color, seed) {
-            ctx.fillStyle = color;
-            ctx.strokeStyle = color;
-
-            const numElements = 8 + Math.floor(seededRandom(seed) * 10);
-
-            const drawOne = (kind, x, y, size, s) => {
-                if (kind === 'hearts') return drawHandDrawnHeart(ctx, x, y, size, s);
-                if (kind === 'stars') return drawHandDrawnStar(ctx, x, y, size, s);
-                if (kind === 'sparkles') return drawHandDrawnSparkle(ctx, x, y, size, s);
-                if (kind === 'circles') return drawHandDrawnCircle(ctx, x, y, size * 0.6, s);
-                if (kind === 'confetti') return drawHandDrawnConfetti(ctx, x, y, size, s);
-
-                if (kind === 'diamonds') return drawHandDrawnDiamond(ctx, x, y, size * 0.8, s);
-                if (kind === 'pluses') return drawHandDrawnPlus(ctx, x, y, size * 0.7, s);
-                if (kind === 'squiggles') return drawHandDrawnSquiggle(ctx, x, y, size, s);
-                if (kind === 'dots') return drawHandDrawnDotCluster(ctx, x, y, size * 0.6, s);
-                if (kind === 'leaves') return drawHandDrawnLeaf(ctx, x, y, size * 0.9, s);
-                if (kind === 'bolts') return drawHandDrawnBolt(ctx, x, y, size * 0.9, s);
-                if (kind === 'moons') return drawHandDrawnMoon(ctx, x, y, size * 0.7, s);
-                if (kind === 'clouds') return drawHandDrawnCloud(ctx, x, y, size * 0.8, s);
-                if (kind === 'ribbons') return drawHandDrawnRibbon(ctx, x, y, size * 0.9, s);
-                if (kind === 'triangles') return drawHandDrawnTriangle(ctx, x, y, size * 0.8, s);
-                if (kind === 'hexagons') return drawHandDrawnHexagon(ctx, x, y, size * 0.75, s);
+            const pushCurrent = () => {
+                if (current) lines.push(current);
+                current = '';
             };
 
-            for (let i = 0; i < numElements; i++) {
-                const x = seededRandom(seed + i * 10) * width;
-                const y = seededRandom(seed + i * 10 + 1) * height;
-                const size = 14 + seededRandom(seed + i * 10 + 2) * 26;
+            for (const token of tokens) {
+                const test = current ? (current + ' ' + token) : token;
 
-                // Skip if too close to center
-                const centerX = width / 2;
-                const centerY = height / 2;
-                const distFromCenter = Math.hypot(x - centerX, y - centerY);
-                if (distFromCenter < Math.min(width, height) * 0.28) continue;
-
-                let kind = style;
-                if (style === 'mixed') {
-                    const all = DRAWING_STYLES.filter(s => s !== 'mixed');
-                    kind = all[Math.floor(seededRandom(seed + i * 99) * all.length)];
+                if (ctx.measureText(test).width <= maxWidth) {
+                    current = test;
+                    continue;
                 }
 
-                //drawOne(kind, x, y, size, seed + i * 7);
+                // If current already has content, push it and retry token on new line
+                if (current) {
+                    pushCurrent();
+                }
+
+                // If the token alone fits, put it as a line
+                if (ctx.measureText(token).width <= maxWidth) {
+                    current = token;
+                    continue;
+                }
+
+                // Token is too long: break by characters
+                let chunk = '';
+                for (const ch of token) {
+                    const t = chunk + ch;
+                    if (ctx.measureText(t).width <= maxWidth) {
+                        chunk = t;
+                    } else {
+                        if (chunk) lines.push(chunk);
+                        chunk = ch;
+                    }
+                }
+                if (chunk) current = chunk;
             }
 
-            ctx.globalAlpha = 1;
+            pushCurrent();
+            return lines;
+        }
+
+        // If a single word is too wide, optionally increase WIDTH (but only when needed)
+        function computeCanvasSize(quote, author, design, format) {
+            const base = FORMATS[format];
+            const minWidth = base.minWidth;
+            const minHeight = base.minHeight;
+
+            // temp ctx for measure
+            const t = document.createElement('canvas');
+            t.width = minWidth;
+            t.height = 10;
+            const ctx = t.getContext('2d');
+
+            const padding = minWidth * 0.1;
+            const quoteFontSize = Math.floor(minWidth * 0.05);
+            const lineHeight = quoteFontSize * 1.4;
+
+            ctx.font = `${quoteFontSize}px ${design.font.quote}`;
+
+            // Check longest token width (for width expansion)
+            const tokens = quote.split(/\s+/).filter(Boolean);
+            let longest = 0;
+            for (const tok of tokens) {
+                longest = Math.max(longest, ctx.measureText(tok).width);
+            }
+
+            // maxWidth is content area
+            let width = minWidth;
+
+            // If longest word doesn't fit in content area, expand width just enough
+            const contentMax = (w) => w - (w * 0.1) * 2;
+            const neededWidth = Math.ceil(longest + (padding * 2));
+
+            // safety cap (so images don't become insane)
+            const maxWidthCap = 2200;
+
+            if (neededWidth > minWidth) {
+                width = Math.min(maxWidthCap, neededWidth);
+            }
+
+            // Now compute height based on FINAL width
+            const t2 = document.createElement('canvas');
+            t2.width = width;
+            t2.height = 10;
+            const ctx2 = t2.getContext('2d');
+
+            const padding2 = width * 0.1;
+            const quoteFontSize2 = Math.floor(width * 0.05);
+            const lineHeight2 = quoteFontSize2 * 1.4;
+
+            ctx2.font = `${quoteFontSize2}px ${design.font.quote}`;
+
+            const maxTextWidth = width - padding2 * 2;
+            const quoteLines = wrapTextSmart(ctx2, quote, maxTextWidth);
+
+            const authorFontSize = author.trim() ? Math.floor(width * 0.034) : 0;
+
+            const quoteHeight = quoteLines.length * lineHeight2;
+            const authorHeight = author.trim() ? (authorFontSize * 1.8) : 0;
+
+            const extra = padding2 * 2.4;
+            const neededHeight = Math.ceil(quoteHeight + authorHeight + extra);
+
+            const height = Math.max(minHeight, neededHeight);
+
+            return { width, height, minWidth, minHeight };
+        }
+
+        // Grid column sizing: if card width is big, fewer columns automatically
+        function setGridColumnMin(formatMinWidth, actualCanvasWidth) {
+            // Base this on canvas width, scaled for on-screen display
+            // 1080 -> ~380, 1600 -> ~560, etc.
+            const w = Math.max(formatMinWidth, actualCanvasWidth);
+            const colMin = Math.max(320, Math.round(w * 0.35));
+            document.documentElement.style.setProperty('--card-col-min', `${colMin}px`);
         }
 
         function renderCard(canvas, quote, author, design, format, radius) {
-            const { width, height } = FORMATS[format];
-            canvas.width = width;
-            canvas.height = height;
+            const size = computeCanvasSize(quote, author, design, format);
+
+            canvas.width = size.width;
+            canvas.height = size.height;
 
             const ctx = canvas.getContext('2d');
             const { palette, gradient, font, drawingStyle, layout, bgType, seed } = design;
 
-            // Rounded clip (radius now used)
             ctx.save();
-            roundedRectPath(ctx, 0, 0, width, height, Number(radius));
+            roundedRectPath(ctx, 0, 0, size.width, size.height, Number(radius));
             ctx.clip();
 
-            // Backgrounds
+            const width = size.width;
+            const height = size.height;
+
+            // Backgrounds (same logic as yours)
             if (bgType === 'gradient' || bgType === 'glass') {
                 const grd = ctx.createLinearGradient(0, 0, width, height);
                 grd.addColorStop(0, gradient[0]);
@@ -975,18 +619,17 @@
                 ctx.fillRect(0, 0, width, height);
             }
 
-            // Decorations BEFORE layout cards
+            // Decorations (off)
             const decorColor = bgType === 'dark' ? '#ffffff' : palette.accent;
             drawRandomDrawings(ctx, drawingStyle, width, height, decorColor, seed);
 
-            // Layout primitives
+            // Layout
             const padding = width * 0.1;
             let contentY = height * 0.5;
             let contentX = width * 0.5;
             let maxWidth = width - padding * 2;
             let align = 'center';
 
-            // New layouts
             if (layout === 'left') {
                 align = 'left';
                 contentX = padding;
@@ -1016,7 +659,6 @@
             } else if (layout === 'offset') {
                 contentY = height * 0.42;
             } else if (layout === 'split') {
-                // Accent panel on left or top depending on format
                 ctx.globalAlpha = 0.18;
                 ctx.fillStyle = palette.accent;
                 if (height >= width) {
@@ -1032,7 +674,7 @@
             } else if (layout === 'giant-quote') {
                 ctx.globalAlpha = 0.14;
                 ctx.fillStyle = bgType === 'dark' ? '#fff' : palette.accent;
-                ctx.font = `900 ${Math.floor(height * 0.28)}px ${font.quote}`;
+                ctx.font = `900 ${Math.floor(width * 0.28)}px ${font.quote}`;
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'top';
                 ctx.fillText('“', padding * 0.6, padding * 0.2);
@@ -1042,7 +684,6 @@
                 contentY = height * 0.56;
                 maxWidth = width - padding * 2;
             } else if (layout === 'underline') {
-                // underline bar near bottom of quote block
                 ctx.globalAlpha = 0.22;
                 ctx.fillStyle = palette.accent;
                 ctx.fillRect(padding, height * 0.72, width - padding * 2, 10);
@@ -1066,24 +707,25 @@
                 ctx.strokeStyle = palette.accent;
                 ctx.lineWidth = 8;
                 const s = padding * 0.9;
-                // 4 corner L shapes
                 ctx.beginPath();
                 ctx.moveTo(padding * 0.6, padding * 0.6 + s);
                 ctx.lineTo(padding * 0.6, padding * 0.6);
                 ctx.lineTo(padding * 0.6 + s, padding * 0.6);
+
                 ctx.moveTo(width - padding * 0.6 - s, padding * 0.6);
                 ctx.lineTo(width - padding * 0.6, padding * 0.6);
                 ctx.lineTo(width - padding * 0.6, padding * 0.6 + s);
+
                 ctx.moveTo(padding * 0.6, height - padding * 0.6 - s);
                 ctx.lineTo(padding * 0.6, height - padding * 0.6);
                 ctx.lineTo(padding * 0.6 + s, height - padding * 0.6);
+
                 ctx.moveTo(width - padding * 0.6 - s, height - padding * 0.6);
                 ctx.lineTo(width - padding * 0.6, height - padding * 0.6);
                 ctx.lineTo(width - padding * 0.6, height - padding * 0.6 - s);
                 ctx.stroke();
                 maxWidth = width - padding * 2.4;
             } else if (layout === 'diagonal') {
-                // Diagonal overlay
                 ctx.globalAlpha = 0.18;
                 ctx.fillStyle = palette.accent;
                 ctx.beginPath();
@@ -1096,28 +738,28 @@
                 contentY = height * 0.58;
             }
 
-            // Text rendering
+            // Text (FULL text always)
             ctx.textAlign = align;
             ctx.textBaseline = 'middle';
 
-            const quoteFontSize = Math.floor(height * 0.05);
+            const quoteFontSize = Math.floor(width * 0.05);
+            const lineHeight = quoteFontSize * 1.4;
+
             ctx.font = `${quoteFontSize}px ${font.quote}`;
             ctx.fillStyle = bgType === 'dark' ? '#ffffff' : palette.text;
 
-            const quoteLines = wrapText(ctx, quote, maxWidth, quoteFontSize * 1.4);
-            const clampedQuoteLines = clampLines(quoteLines, 6);
-
-            const totalQuoteHeight = clampedQuoteLines.length * quoteFontSize * 1.4;
+            const quoteLines = wrapTextSmart(ctx, quote, maxWidth);
+            const totalQuoteHeight = quoteLines.length * lineHeight;
             let currentY = contentY - totalQuoteHeight / 2;
 
-            clampedQuoteLines.forEach(line => {
+            quoteLines.forEach(line => {
                 const x = align === 'left' ? contentX : width / 2;
                 ctx.fillText(line, x, currentY);
-                currentY += quoteFontSize * 1.4;
+                currentY += lineHeight;
             });
 
             if (author.trim()) {
-                const authorFontSize = Math.floor(height * 0.034);
+                const authorFontSize = Math.floor(width * 0.034);
                 currentY += authorFontSize * 0.6;
 
                 ctx.font = `600 ${authorFontSize}px ${font.author}`;
@@ -1127,25 +769,20 @@
                 ctx.fillText(`${author}`, x, currentY);
             }
 
-            ctx.restore(); // end clip
+            ctx.restore();
         }
-
 
         function showToast(message) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 2500);
+            setTimeout(() => toast.classList.remove('show'), 2500);
         }
 
         async function copyImage(canvas) {
             try {
                 const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                await navigator.clipboard.write([
-                    new ClipboardItem({ 'image/png': blob })
-                ]);
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 showToast('Image copied to clipboard');
             } catch (err) {
                 showToast('Clipboard failed. Use HTTPS or localhost.');
@@ -1164,28 +801,12 @@
             }, 'image/png');
         }
 
-        function generateCards() {
-            const quote = document.getElementById('quoteText').value;
-            const author = document.getElementById('authorText').value;
-            const format = document.getElementById('formatSelect').value;
-            const radius = document.getElementById('radiusSelect').value;
-
-            if (!quote.trim()) {
-                showToast('Please enter a quote');
-                return;
-            }
-
-            const grid = document.getElementById('cardsGrid');
-            grid.innerHTML = '';
-
-            const { width, height } = FORMATS[format];
-            document.getElementById('infoText').textContent = `9 images · ${width}×${height}`;
-
+        function makeDesigns(count = 6) {
             const baseSeed = Date.now();
             const designs = [];
             const usedHashes = new Set();
 
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < count; i++) {
                 let design;
                 let hash;
                 let attempts = 0;
@@ -1200,8 +821,39 @@
                 usedHashes.add(hash);
                 designs.push(design);
             }
+            return designs;
+        }
 
-            designs.forEach((design, index) => {
+        let designsCache = makeDesigns(6);
+
+        function generateCards(useSameDesigns = true) {
+            const quote = document.getElementById('quoteText').value;
+            const author = document.getElementById('authorText').value;
+            const format = document.getElementById('formatSelect').value;
+            const radius = document.getElementById('radiusSelect').value;
+
+            if (!quote.trim()) {
+                showToast('Please enter a quote');
+                return;
+            }
+
+            const grid = document.getElementById('cardsGrid');
+            grid.innerHTML = '';
+
+            if (!useSameDesigns) designsCache = makeDesigns(6);
+
+            // Set grid responsiveness based on selected format minWidth
+            // (also adjusted by actual card width if it grows)
+            const baseMinW = FORMATS[format].minWidth;
+
+            // Pre-measure once using first design to know if width expands
+            const probeSize = computeCanvasSize(quote, author, designsCache[0], format);
+            setGridColumnMin(baseMinW, probeSize.width);
+
+            document.getElementById('infoText').textContent =
+                `Cards · min ${FORMATS[format].minWidth}×${FORMATS[format].minHeight} (auto grows if needed)`;
+
+            designsCache.forEach((design, index) => {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'card-wrapper';
 
@@ -1234,13 +886,20 @@
                 grid.appendChild(wrapper);
             });
 
-            showToast('9 cards generated');
+            showToast('Cards generated');
         }
 
-        document.getElementById('generateBtn').addEventListener('click', generateCards);
+        // Generate button: fresh new designs
+        document.getElementById('generateBtn').addEventListener('click', () => generateCards(false));
 
-        // Generate on load
-        generateCards();
+        // Auto reflect changes instantly
+        document.getElementById('formatSelect').addEventListener('change', () => generateCards(true));
+        document.getElementById('radiusSelect').addEventListener('change', () => generateCards(true));
+        document.getElementById('quoteText').addEventListener('input', () => generateCards(true));
+        document.getElementById('authorText').addEventListener('input', () => generateCards(true));
+
+        // On load
+        generateCards(true);
     </script>
 </body>
 
