@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <title>Customer Love Quote Cards</title>
+    <title>❤️ Praise Cards Generator</title>
 
     <style>
         * {
@@ -23,7 +23,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FFCDD2 0%, #ffffff 100%);
             color: #1d1d1f;
             overflow-x: hidden;
             position: relative;
@@ -64,6 +64,8 @@
             top: 0;
             height: 100vh;
             overflow: auto;
+            margin: 2%;
+            border-radius: 8dvh;
         }
 
         .right-panel {
@@ -87,13 +89,6 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-        }
-
-        .sub {
-            font-size: 12px;
-            color: #6e6e73;
-            font-weight: 600;
-            letter-spacing: 0.2px;
         }
 
         .form-group {
@@ -394,20 +389,19 @@
         <div class="panel left-panel">
             <div class="header">
                 <div>
-                    <h1>Quote Card Generator</h1>
-                    <div class="sub">Long text supported. Height grows automatically.</div>
+                    <h1>❤️ Praise Cards Generator</h1>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Quote Text</label>
+                <label>Praise Message</label>
                 <textarea id="quoteText"
-                    placeholder="Paste long customer message...">For me, gratitude is an amazing app. I'm a paper and pen girlie but with Gratitude I don't even feel the difference.... a 9.5 out of 10 for me.</textarea>
+                    placeholder="For me, gratitude is an amazing app. I'm a paper and pen girlie but with Gratitude I don't even feel the difference.... a 9.5 out of 10 for me."></textarea>
             </div>
 
             <div class="form-group">
-                <label>Author (Optional)</label>
-                <input id="authorText" type="text" placeholder="Customer name" value="Faith Anazodo" />
+                <label>User Name</label>
+                <input id="authorText" type="text" placeholder="Faith Anazodo" value="" />
             </div>
 
             <div class="row">
@@ -450,7 +444,7 @@
             </div>
 
             <div class="form-group">
-                <label>Quote Font Size</label>
+                <label>Praise Messagae Font Size</label>
                 <div class="range-row">
                     <input id="quoteSize" type="range" min="70" max="140" value="95" />
                     <div class="range-value" id="quoteSizeVal">95%</div>
@@ -458,7 +452,7 @@
             </div>
 
             <div class="form-group">
-                <label>Author Font Size</label>
+                <label>User Name Font Size</label>
                 <div class="range-row">
                     <input id="authorSize" type="range" min="70" max="140" value="105" />
                     <div class="range-value" id="authorSizeVal">105%</div>
@@ -537,15 +531,15 @@
 
         const STYLE_PACKS = {
             balanced: {
-                bgTypes: ['solid', 'gradient', 'paper', 'noise', 'spotlight', 'halftone', 'blobs', 'glass', 'stripes'],
+                bgTypes: ['solid', 'gradient', 'paper', 'noise', 'halftone', 'blobs', 'glass', 'stripes'],
                 layouts: ['centered', 'left', 'split', 'underline', 'footer', 'corner-frame', 'diagonal']
             },
             bold: {
-                bgTypes: ['gradient', 'dark', 'stripes', 'blobs', 'spotlight'],
+                bgTypes: ['gradient', 'dark', 'stripes', 'blobs'],
                 layouts: ['split', 'diagonal', 'side-stripe', 'corner-frame']
             },
             minimal: {
-                bgTypes: ['solid', 'paper', 'spotlight'],
+                bgTypes: ['solid', 'paper'],
                 layouts: ['centered', 'left', 'underline', 'footer', 'bordered']
             },
             playful: {
@@ -936,14 +930,6 @@
                     ctx.lineTo(i + height, height);
                     ctx.stroke();
                 }
-            } else if (bgType === 'spotlight') {
-                ctx.fillStyle = palette.bg;
-                ctx.fillRect(0, 0, width, height);
-                const radial = ctx.createRadialGradient(width * 0.5, height * 0.42, 10, width * 0.5, height * 0.42, Math.max(width, height) * 0.7);
-                radial.addColorStop(0, 'rgba(255,255,255,0.55)');
-                radial.addColorStop(1, 'rgba(255,255,255,0)');
-                ctx.fillStyle = radial;
-                ctx.fillRect(0, 0, width, height);
             } else if (bgType === 'halftone') {
                 ctx.fillStyle = palette.bg;
                 ctx.fillRect(0, 0, width, height);
