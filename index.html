@@ -538,11 +538,11 @@
         const STYLE_PACKS = {
             balanced: {
                 bgTypes: ['solid', 'gradient', 'paper', 'noise', 'spotlight', 'halftone', 'blobs', 'glass', 'stripes'],
-                layouts: ['centered', 'left', 'split', 'giant-quote', 'underline', 'footer', 'corner-frame', 'diagonal', 'card-in-card']
+                layouts: ['centered', 'left', 'split', 'underline', 'footer', 'corner-frame', 'diagonal']
             },
             bold: {
                 bgTypes: ['gradient', 'dark', 'stripes', 'blobs', 'spotlight'],
-                layouts: ['giant-quote', 'split', 'diagonal', 'side-stripe', 'corner-frame']
+                layouts: ['split', 'diagonal', 'side-stripe', 'corner-frame']
             },
             minimal: {
                 bgTypes: ['solid', 'paper', 'spotlight'],
@@ -550,7 +550,7 @@
             },
             playful: {
                 bgTypes: ['gradient', 'halftone', 'blobs', 'noise', 'paper'],
-                layouts: ['icon-top', 'card-in-card', 'split', 'diagonal', 'underline']
+                layouts: ['icon-top', 'split', 'diagonal', 'underline']
             },
         };
 
@@ -680,7 +680,7 @@
             ctx.strokeStyle = color;
             ctx.fillStyle = color;
 
-            const n = 14 + Math.floor(seededRandom(seed) * 12);
+            const n = 14 + Math.floor(seededRandom(seed));
             for (let i = 0; i < n; i++) {
                 const x = seededRandom(seed + i * 11) * width;
                 const y = seededRandom(seed + i * 11 + 1) * height;
@@ -807,7 +807,6 @@
 
         // Returns best text + author colors for current drawn background
         function chooseTextColors(ctx, width, height, palette) {
-            // sample roughly where quote usually sits
             const sx = width * 0.22;
             const sy = height * 0.30;
             const sw = width * 0.56;
@@ -816,35 +815,41 @@
             const avg = sampleAverageRgb(ctx, sx, sy, sw, sh);
             const L = relLuma(avg);
 
-            // threshold: tweak if you want more “dark text”
-            const useDark = L > 0.55;
+            const isLightBg = L > 0.55;
 
-            const quoteColor = useDark ? '#111827' : '#FFFFFF';
+            // Quote color
+            const quoteColor = isLightBg ? '#111827' : '#FFFFFF';
 
-            // author: use accent but ensure contrast; if accent too close, fall back to quoteColor
-            const acc = hexToRgb(palette.accent);
-            const quoteRgb = hexToRgb(quoteColor);
-            const accL = relLuma(acc);
-            const quoteL = relLuma(quoteRgb);
-            const contrast = (Math.max(accL, quoteL) + 0.05) / (Math.min(accL, quoteL) + 0.05);
-
+            // Default author color = accent
             let authorColor = palette.accent;
-            if (contrast < 2.2) {
-                // pull accent toward quoteColor for readability
-                const mixed = mixRgb(acc, quoteRgb, 0.55);
-                authorColor = `rgb(${mixed.r}, ${mixed.g}, ${mixed.b})`;
-            }
 
-            // slightly soften author on dark backgrounds
-            if (!useDark) {
-                // dark background -> white quote; author becomes near-white
-                const mixed = mixRgb(hexToRgb(authorColor), { r: 255, g: 255, b: 255 }, 0.2);
-                authorColor = `rgb(${mixed.r}, ${mixed.g}, ${mixed.b})`;
+            // --- FIX FOR DARK CARDS ---
+            if (!isLightBg) {
+                // Dark background: force author to be readable
+                // Option A: soft white (recommended)
+                authorColor = 'rgba(255,255,255,0.85)';
+
+                // Option B (if you want accent feel instead):
+                // const acc = hexToRgb(palette.accent);
+                // const mixed = mixRgb(acc, { r: 255, g: 255, b: 255 }, 0.6);
+                // authorColor = `rgb(${mixed.r}, ${mixed.g}, ${mixed.b})`;
+            } else {
+                // Light background: ensure accent has enough contrast
+                const acc = hexToRgb(palette.accent);
+                const quoteRgb = hexToRgb(quoteColor);
+
+                const accL = relLuma(acc);
+                const quoteL = relLuma(quoteRgb);
+                const contrast = (Math.max(accL, quoteL) + 0.05) / (Math.min(accL, quoteL) + 0.05);
+
+                if (contrast < 2.2) {
+                    const mixed = mixRgb(acc, quoteRgb, 0.55);
+                    authorColor = `rgb(${mixed.r}, ${mixed.g}, ${mixed.b})`;
+                }
             }
 
             return { quoteColor, authorColor };
         }
-
 
         function renderCard(canvas, quote, author, design, format, radius, sizeOverride) {
             const base = FORMATS[format];
@@ -957,7 +962,7 @@
                 ctx.fillRect(0, 0, width, height);
                 ctx.globalAlpha = 0.22;
                 ctx.fillStyle = palette.accent;
-                for (let i = 0; i < 7; i++) {
+                for (let i = 0; i < 3; i++) {
                     const x = seededRandom(seed + i * 10) * width;
                     const y = seededRandom(seed + i * 10 + 1) * height;
                     const r = 120 + seededRandom(seed + i * 10 + 2) * 260;
@@ -1005,18 +1010,6 @@
                 ctx.lineWidth = 7;
                 ctx.strokeRect(padding / 2, padding / 2, width - padding, height - padding);
                 innerMax = width - padding * 3;
-            } else if (layout === 'card-in-card') {
-                hasLightPanel = true;
-                const cardPad = padding * 0.85;
-                ctx.save();
-                ctx.shadowColor = 'rgba(0,0,0,0.15)';
-                ctx.shadowBlur = 28;
-                ctx.shadowOffsetY = 12;
-                ctx.fillStyle = 'rgba(255,255,255,0.92)';
-                roundedRectPath(ctx, cardPad, cardPad, width - cardPad * 2, height - cardPad * 2, Math.max(18, Number(radius)));
-                ctx.fill();
-                ctx.restore();
-                innerMax = width - cardPad * 3;
             } else if (layout === 'split') {
                 ctx.globalAlpha = 0.18;
                 ctx.fillStyle = palette.accent;
@@ -1030,17 +1023,6 @@
                     innerMax = width * 0.55;
                 }
                 ctx.globalAlpha = 1;
-            } else if (layout === 'giant-quote') {
-                ctx.globalAlpha = 0.14;
-                ctx.fillStyle = isDark ? '#fff' : palette.accent;
-                ctx.font = `900 ${Math.floor(width * 0.22)}px ${font.quote}`;
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'top';
-                ctx.fillText('“', padding * 0.55, padding * 0.20);
-                ctx.globalAlpha = 1;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'alphabetic';
-                contentY = height * 0.56;
             } else if (layout === 'underline') {
                 ctx.globalAlpha = 0.22;
                 ctx.fillStyle = palette.accent;
