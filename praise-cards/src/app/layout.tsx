@@ -2,8 +2,8 @@
 import "@/app/globals.css";
 
 export const metadata = {
-  title: "❤️ Praise Cards Generator",
-  description: "Generate praise cards",
+  title: "❤️ Praise Wall",
+  description: "A wall of love from Gratitude Users",
 };
 
 export default function RootLayout({
