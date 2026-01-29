@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { database } from "@/config/firebase";
-import { onValue, ref } from "firebase/database";
+import {
+  ref,
+  get,
+  query,
+  orderByChild,
+  limitToLast,
+  endAt,
+} from "firebase/database";
 
 type Palette = { bg: string; text: string; accent: string };
 type FontPack = { quote: string; author: string };
@@ -29,6 +36,10 @@ type CardData = {
 export default function PraiseWallPage() {
   const [cards, setCards] = useState<CardData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageSize] = useState(15);
+  const [hasMore, setHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const canvasRefs = useRef<Map<string, HTMLCanvasElement>>(new Map());
@@ -531,35 +542,131 @@ export default function PraiseWallPage() {
     }
   }
 
-  // ---------- fetch cards ----------
-  useEffect(() => {
-    const wallRef = ref(database, "praiseWall");
+  // ---------- paginated fetch cards ----------
+  async function fetchPage(earliestCreatedAt?: string) {
+    try {
+      if (earliestCreatedAt) setLoadingMore(true);
+      else setLoading(true);
 
-    const unsub = onValue(
-      wallRef,
-      (snap) => {
-        setLoading(false);
+      const wallRef = ref(database, "praiseWall");
+
+      let q;
+      if (earliestCreatedAt) {
+        // fetch older pages (createdAt <= earliestCreatedAt)
+        q = query(
+          wallRef,
+          orderByChild("createdAt"),
+          endAt(earliestCreatedAt),
+          limitToLast(pageSize + 1),
+        );
+      } else {
+        // initial newest page
+        q = query(wallRef, orderByChild("createdAt"), limitToLast(pageSize));
+      }
+
+      let snap;
+      let list: CardData[] = [];
+      try {
+        snap = await get(q);
         if (!snap.exists()) {
-          setCards([]);
+          if (!earliestCreatedAt) setCards([]);
+          setHasMore(false);
           return;
         }
-        const val = snap.val();
-        const list: CardData[] = Object.entries(val).map(([id, v]: any) => ({
-          id,
-          ...v,
-        }));
 
+        const val = snap.val();
+        list = Object.entries(val).map(([id, v]: any) => ({ id, ...v }));
+
+        // sort newest first
         list.sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
-        setCards(list);
-      },
-      () => setLoading(false),
-    );
+      } catch (err: any) {
+        // Firebase Realtime Database requires an index for orderByChild queries.
+        // Fall back to fetching the entire node and paginating client-side.
+        console.warn(
+          "Query failed (likely missing .indexOn for 'createdAt') — falling back to unindexed fetch:",
+          err,
+        );
 
-    return () => unsub();
+        const allSnap = await get(wallRef);
+        if (!allSnap.exists()) {
+          if (!earliestCreatedAt) setCards([]);
+          setHasMore(false);
+          return;
+        }
+
+        const val = allSnap.val();
+        const allList: CardData[] = Object.entries(val).map(([id, v]: any) => ({
+          id,
+          ...v,
+        }));
+        allList.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+
+        if (!earliestCreatedAt) {
+          list = allList.slice(0, pageSize);
+          setHasMore(allList.length > pageSize);
+        } else {
+          const older = allList.filter(
+            (c) => new Date(c.createdAt) < new Date(earliestCreatedAt),
+          );
+          list = older.slice(0, pageSize);
+          setHasMore(older.length > pageSize);
+        }
+      }
+
+      if (!earliestCreatedAt) {
+        setCards(list);
+        setHasMore(list.length >= pageSize);
+      } else {
+        // we fetched pageSize+1 to detect overlap; drop duplicate if present
+        let merged = [...cards];
+        // remove the item equal to earliestCreatedAt from the fetched list (it will be last)
+        if (list.length > pageSize) {
+          // drop the oldest item in new list (which duplicates)
+          list.shift();
+        }
+        // append older items after existing cards
+        merged = [...merged, ...list];
+        setCards(merged);
+        setHasMore(list.length >= pageSize);
+      }
+    } catch (e) {
+      console.error("fetchPage error", e);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // IntersectionObserver for infinite scroll: when sentinel is visible, load next page
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting && hasMore && !loadingMore && cards.length > 0) {
+            const oldest = cards[cards.length - 1];
+            if (oldest) fetchPage(oldest.createdAt);
+          }
+        }
+      },
+      { root: null, rootMargin: "400px", threshold: 0.1 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, hasMore, loadingMore]);
 
   // ---------- render to canvases ----------
   useEffect(() => {
@@ -569,16 +676,10 @@ export default function PraiseWallPage() {
     }
   }, [cards]);
 
-  const displayWidth = 320; // px
-
-  const masonryStyle = useMemo(() => {
-    return {
-      ["--cardW" as any]: `${displayWidth}px`,
-    } as React.CSSProperties;
-  }, []);
+  const displayWidth = 320; // px (kept for compatibility)
 
   return (
-    <div className="page" style={masonryStyle}>
+    <div className="page">
       {!loading && cards.length === 0 ? (
         <div className="empty">No praise yet.</div>
       ) : (
@@ -604,6 +705,13 @@ export default function PraiseWallPage() {
         </div>
       )}
 
+      <div ref={sentinelRef} style={{ height: 1 }} />
+      {loadingMore ? (
+        <div className="spinnerWrap" aria-hidden="true">
+          <div className="spinner" />
+        </div>
+      ) : null}
+
       {toast ? <div className="toast show">{toast}</div> : null}
 
       <style jsx>{`
@@ -621,20 +729,18 @@ export default function PraiseWallPage() {
           color: #6b7280;
         }
 
-        /* Flex layout: 3 cards per row, centered */
+        /* Dense grid like Instagram Explore: fill the row with as many items as fit */
         .masonry {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: space-evenly;
-          gap: 36px;
-          max-width: 1200px;
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 10px;
+          width: 100%;
           margin: 0 auto;
         }
 
         .item {
           display: block;
-          width: var(--cardW); /* fixed card width */
-          flex-shrink: 0;
+          width: 100%;
         }
 
         /* ---------------- Card ---------------- */
@@ -699,6 +805,30 @@ export default function PraiseWallPage() {
           z-index: 1000;
         }
 
+        /* load-more button removed in favor of infinite scroll */
+
+        .spinnerWrap {
+          text-align: center;
+          margin-top: 12px;
+          color: #374151;
+        }
+
+        .spinner {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 3px solid rgba(55, 65, 81, 0.15);
+          border-top-color: #111827;
+          display: inline-block;
+          animation: spin 0.9s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
         .toast.show {
           opacity: 1;
           transform: translateX(-50%) translateY(0);
@@ -707,7 +837,8 @@ export default function PraiseWallPage() {
         /* keep compact on small screens */
         @media (max-width: 1080px) {
           .masonry {
-            gap: 16px;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
           }
         }
 
@@ -716,7 +847,8 @@ export default function PraiseWallPage() {
             padding: 26px 14px 80px;
           }
           .masonry {
-            gap: 12px;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
           }
           .item {
             width: 100%;
