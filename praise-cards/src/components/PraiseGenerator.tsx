@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { database } from "@/config/firebase";
+import { push, ref } from "firebase/database";
 
 type FormatKey = "square" | "portrait" | "landscape";
 
@@ -276,6 +278,54 @@ export default function PraiseGenerator() {
         URL.revokeObjectURL(url);
         showToast("Downloaded");
       }, "image/png");
+    }
+
+    async function uploadToWall(canvas: HTMLCanvasElement, index: number) {
+      try {
+        const quote = quoteText.value;
+        const author = authorText.value;
+
+        if (!quote.trim()) {
+          showToast("Please enter a quote");
+          return;
+        }
+
+        const design = designsCache[index];
+
+        const cardData = {
+          // text
+          quote: quote.trim(),
+          author: author.trim(),
+
+          // exact export size (so wall can scale consistently)
+          width: canvas.width,
+          height: canvas.height,
+
+          // full design details (to re-render later)
+          palette: design.palette,
+          gradient: design.gradient,
+          font: design.font,
+          bgType: design.bgType,
+          layout: design.layout,
+          seed: design.seed,
+
+          // generator controls that affect rendering
+          format: formatSelect.value,
+          radius: radiusSelect.value,
+          quoteSizeMultiplier: Number(quoteSize.value),
+          authorSizeMultiplier: Number(authorSize.value),
+
+          createdAt: new Date().toISOString(),
+        };
+
+        const wallRef = ref(database, "praiseWall");
+        await push(wallRef, cardData);
+
+        showToast("✨ Uploaded to Praise Wall!");
+      } catch (error) {
+        console.error("Upload error:", error);
+        showToast("Upload failed. Check Firebase config.");
+      }
     }
 
     function getQuoteMul() {
@@ -819,7 +869,6 @@ export default function PraiseGenerator() {
         if (!dragging) return;
 
         const dx = (e.clientX - startX) * scale;
-        const dy = (e.clientY - startY) * scale;
 
         const format = formatSelect.value as FormatKey;
         const base = FORMATS[format];
@@ -834,7 +883,7 @@ export default function PraiseGenerator() {
         const maxExportW = Math.floor(maxPreview / PREVIEW_SCALE);
 
         let newW = Math.max(base.minWidth, Math.round(startW + dx));
-        let newH = Math.max(base.minHeight, Math.round(startH + dy));
+        let newH = startH; // Keep height fixed, only width changes
 
         // cap export width so preview doesn’t go infinite / text doesn’t keep growing visually
         newW = Math.min(newW, maxExportW);
@@ -932,8 +981,14 @@ export default function PraiseGenerator() {
       dlBtn.textContent = "Download";
       dlBtn.onclick = () => downloadImage(canvas, index);
 
+      const uploadBtn = document.createElement("button");
+      uploadBtn.className = "card-btn";
+      uploadBtn.textContent = "Upload to Praise Wall";
+      uploadBtn.onclick = () => uploadToWall(canvas, index);
+
       actions.appendChild(copyBtn);
       actions.appendChild(dlBtn);
+      actions.appendChild(uploadBtn);
       wrapper.appendChild(actions);
 
       const cleanupResize = attachResize(handle, canvas, index, wrapper);
@@ -1204,7 +1259,7 @@ export default function PraiseGenerator() {
               <input
                 id="authorSize"
                 type="range"
-                min="70"
+                min="20"
                 max="140"
                 defaultValue="105"
               />
